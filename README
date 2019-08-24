@@ -1,0 +1,28 @@
+Simple demos of how to build a JavaCC parser using maven.
+
+Provides several simplified unit parsing grammars based on the 
+JSR 275 grammar found at https://github.com/unitsofmeasurement/jsr-275/tree/master/src/main/javacc/javax/measure/unit/format
+
+Note that these are demos and have not been tested.
+
+UnitParserNoMix.jj - this is the base parser for the others below. This is 
+a working version of the original parser with the 'mix' construct 
+deleted. In the documentation, a mix expression is 
+<mix_expr>	:=	<add_expr> ( ":" <add_expr> )*. It is not clear
+from the code what this should be - the second add_expr seems to 
+be ignored. 
+
+UnitParserExp.jj - a unit parser that replaces the exponential
+construct e^{} with a function exp(). This means that 'e' is no 
+longer a reserved character.
+
+UnitParserMinimal.jj - a unit parser that does not support:
+ - exponentiation, other than units being exponentiated by an integer, 
+ - logarithms
+ - addition
+
+Some simple demos of these parsers being used are given in TestParser.java.
+
+
+Also provided is a simple class demonstrating how to add alises to
+EBNFUnitFormat.
