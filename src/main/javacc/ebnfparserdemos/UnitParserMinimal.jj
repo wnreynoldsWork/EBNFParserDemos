@@ -1,0 +1,235 @@
+/*
+ * JScience - Java(TM) Tools and Libraries for the Advancement of Sciences.
+ * Copyright (C) 2008-2010 - JScience
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software is
+ * freely granted, provided that this notice is preserved.
+ */
+
+options {
+  STATIC = false;
+  UNICODE_INPUT = true;
+  DEBUG_PARSER = false;
+  DEBUG_LOOKAHEAD = false;
+  DEBUG_TOKEN_MANAGER = false;
+  FORCE_LA_CHECK = true;
+}
+
+PARSER_BEGIN(UnitParserMinimal)
+
+package ebnfparserdemos;
+
+import tech.units.indriya.format.SymbolMap;
+import tech.units.indriya.AbstractUnit;
+import javax.measure.Unit;
+import javax.measure.Prefix;
+
+
+/**
+ * @author <a href="mailto:eric-r@northwestern.edu">Eric Russell</a>
+ * @author  <a href="mailto:jsr275@catmedia.us">Werner Keil</a>
+ * @version 1.0.2 ($Revision: 148 $), $Date: 2010-02-18 07:19:01 +0100 (Do, 18 Feb 2010) $
+ */
+public class UnitParserMinimal {
+
+    private static class Exponent {
+        public final int pow;
+        public final int root;
+        public Exponent (int pow, int root) {
+            this.pow = pow;
+            this.root = root;
+        }
+    }
+
+    private SymbolMap symbols;
+
+    public UnitParserMinimal (SymbolMap symbols, java.io.Reader in) {
+        this(in);
+        this.symbols = symbols;
+    }
+}
+
+PARSER_END(UnitParserMinimal)
+
+//
+// Lexical entities
+//
+
+TOKEN: { <#DIGIT: [ "0","1","2","3","4","5","6","7","8","9" ] >
+       | <#SUPERSCRIPT_DIGIT: [ "\u2070", "\u00B9", "\u00B2", "\u00B3", "\u2074", "\u2075", "\u2076", "\u2077", "\u2078", "\u2079" ] >
+       | <#INITIAL_CHAR: ~["\u0000"-"\u0020", "(", ")", "*", "+", "-", ".", "/", "0"-"9", ":", "^", "\u00B2", "\u00B3", "\u00B7", "\u00B9", "\u2070", "\u2074", "\u2075", "\u2076", "\u2077", "\u2078", "\u2079" ] >
+       | <#EXTENDED_CHAR: ~["\u0000"-"\u0020", "(", ")", "*", "+", "-", ".", "/", ":", "^", "\u00B2", "\u00B3", "\u00B7", "\u00B9", "\u2070", "\u2074", "\u2075", "\u2076", "\u2077", "\u2078", "\u2079" ] > }
+TOKEN: { <PLUS: "+" > }
+TOKEN: { <MINUS: "-" > }
+TOKEN: { <ASTERISK: "*" > }
+TOKEN: { <MIDDLE_DOT: "\u00B7" > }
+TOKEN: { <SOLIDUS: "/" > }
+TOKEN: { <CARET: "^" > }
+TOKEN: { <OPEN_PAREN: "(" > }
+TOKEN: { <CLOSE_PAREN: ")" > }
+TOKEN: { <INTEGER: (<DIGIT>)+ > }
+TOKEN: { <SUPERSCRIPT_INTEGER: (<SUPERSCRIPT_DIGIT>)+ > }
+TOKEN: { <FLOATING_POINT: (<DIGIT>)* (".")? (<DIGIT>)+ (("e" | "E") ((<PLUS>)|(<MINUS>))? (<DIGIT>)+)? > }
+TOKEN: { <UNIT_IDENTIFIER: <INITIAL_CHAR> (<EXTENDED_CHAR>)* > }
+
+//
+// Parser productions
+//
+
+public Unit<?> parseUnit () :
+    {
+        Unit<?> result;
+    }
+{
+    result=mulExpr() <EOF>
+    {
+        return result;
+    }
+}
+
+
+Unit<?> mulExpr () :
+    {
+        Unit<?> result = AbstractUnit.ONE;
+        Unit<?> temp = AbstractUnit.ONE;
+    }
+{
+(
+    result=exponentExpr()
+    (
+      ( (<ASTERISK> | <MIDDLE_DOT>) temp=exponentExpr() { result=result.multiply(temp); } )
+    |
+      ( <SOLIDUS> temp=exponentExpr() { result=result.divide(temp); } )
+    )*
+    { return result; }
+)
+}
+
+Unit<?> exponentExpr () :
+  {
+      Unit<?> result = AbstractUnit.ONE;
+      Unit<?> temp = AbstractUnit.ONE;
+      Exponent exponent = null;
+      Token token = null;
+  }
+{
+    ( result=atomicExpr() ( exponent=exp() )? )
+    {
+        if (exponent != null) {
+            if (exponent.pow != 1) {
+                result = result.pow(exponent.pow);
+            }
+            if (exponent.root != 1) {
+                result = result.root(exponent.root);
+            }
+        }
+        return result;
+    }
+}
+
+Exponent exp () :
+    {
+        Token powSign = null;
+        Token powToken = null;
+        Token rootSign = null;
+        Token rootToken = null;
+    }
+{
+    (
+      <CARET>
+      (
+        ( (powSign=sign())? powToken=<INTEGER> )
+        {
+            int pow = Integer.parseInt(powToken.image);
+            if ((powSign != null) && powSign.image.equals("-")) {
+                pow = -pow;
+            }
+            return new Exponent(pow, 1);
+        }
+      )
+    |
+      (
+        ( powToken=<SUPERSCRIPT_INTEGER> )
+        {
+            int pow = 0;
+            for (int i = 0; i < powToken.image.length(); i += 1) {
+                pow *= 10;
+                switch (powToken.image.charAt(i)) {
+                    case '\u00B9': pow += 1; break;
+                    case '\u00B2': pow += 2; break;
+                    case '\u00B3': pow += 3; break;
+                    case '\u2074': pow += 4; break;
+                    case '\u2075': pow += 5; break;
+                    case '\u2076': pow += 6; break;
+                    case '\u2077': pow += 7; break;
+                    case '\u2078': pow += 8; break;
+                    case '\u2079': pow += 9; break;
+                }
+            }
+            return new Exponent(pow, 1);
+        }
+      )
+    )
+}
+
+
+Unit<?> atomicExpr () :
+    {
+        Unit<?> result = AbstractUnit.ONE;
+        Unit<?> temp = AbstractUnit.ONE;
+        Number n = null;
+        Token token = null;
+    }
+{
+    ( token=<UNIT_IDENTIFIER> )
+    {
+        Unit<?> unit = symbols.getUnit(token.image);
+        if (unit == null) {
+            Prefix prefix = symbols.getPrefix(token.image);
+            if (prefix != null) {
+                String prefixSymbol = symbols.getSymbol(prefix);
+                unit = symbols.getUnit(token.image.substring(prefixSymbol.length()));
+                if (unit != null) {
+                    return unit.prefix(prefix);
+                }
+            }
+            throw new ParseException();
+        } else {
+            return unit;
+        }
+    }
+}
+
+Token sign () :
+    {
+        Token result = null;
+    }
+{
+    (
+        (result=<PLUS>)
+    |
+        (result=<MINUS>)
+    )
+    {
+        return result;
+    }
+}
+
+Number numberExpr () :
+    {
+        Token token = null;
+    }
+{
+    (
+        ( token=<INTEGER> )
+        {
+            return Long.valueOf(token.image);
+        }
+    |
+        ( token=<FLOATING_POINT> )
+        {
+            return Double.valueOf(token.image);
+        }
+    )
+}
