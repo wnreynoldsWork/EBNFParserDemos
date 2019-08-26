@@ -39,6 +39,7 @@ public class TestParser {
         runParserMinimal("W/s²");
         runParserMinimal("W/s/s");
         runParserMinimal("W/s^2");
+        runParserMinimal("W/(s*s*m)");
         runParserMinimal("e");
         runParserMinimal("e");
         // all fails
