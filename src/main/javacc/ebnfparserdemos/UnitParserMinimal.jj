@@ -199,6 +199,11 @@ Unit<?> atomicExpr () :
             return unit;
         }
     }
+|
+    ( <OPEN_PAREN> result=mulExpr() <CLOSE_PAREN> )
+    {
+        return result;
+    }
 }
 
 Token sign () :
